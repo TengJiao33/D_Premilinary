@@ -22,7 +22,7 @@ try:
     print("列名预览:", df_trash.columns)
 
     # 保存
-    df_trash.to_csv("Manhattan_Garbage_Tonnage.csv", index=False)
+    df_trash.to_csv("Manhattan_Garbage_Ton_201701_202510.csv", index=False)
     print(f"成功！共抓取 {len(df_trash)} 行垃圾产量数据。")
 
 except Exception as e:
