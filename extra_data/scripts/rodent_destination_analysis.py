@@ -1,7 +1,7 @@
 import pandas as pd
 
 # 读取你刚才抓取的那份 2023-2025 的数据
-df = pd.read_csv("Manhattan_Rodents_2023_2025.csv") # 或者是你保存的那个文件名
+df = pd.read_csv("../rodent_data/Manhattan_Rodents_2023_2025.csv") # 或者是你保存的那个文件名
 
 # 检查 location_type 的分布
 print("=== 老鼠出没地点分布 (Top 10) ===")

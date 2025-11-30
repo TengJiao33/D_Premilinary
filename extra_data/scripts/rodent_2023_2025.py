@@ -41,7 +41,7 @@ try:
     print(df_rats.head())
 
     # 保存
-    filename = "Manhattan_Rodents_2023_2025.csv"
+    filename = "../rodent_data/Manhattan_Rodents_2023_2025.csv"
     df_rats.to_csv(filename, index=False)
     print(f"文件已保存为: {filename}")
 
