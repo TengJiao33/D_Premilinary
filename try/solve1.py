@@ -4,7 +4,7 @@ import numpy as np
 # ================= 配置参数 =================
 INPUT_FILE = 'extra_data/merged_data/Manhattan_Data_Current_2023_2025.csv'
 TRUCK_CAPACITY_PER_TRIP = 12.0  # 单次运力 (吨)
-TRIPS_PER_DAY = 2  # 每日趟数
+TRIPS_PER_DAY = 1  # 每日趟数
 DAILY_CAPACITY = TRUCK_CAPACITY_PER_TRIP * TRIPS_PER_DAY  # 24吨
 
 
