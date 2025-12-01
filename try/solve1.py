@@ -1,132 +1,127 @@
 import pandas as pd
 import numpy as np
 
-# ================= 配置参数 =================
+# ================= 1. 配置参数与约束 (L5 模型) =================
+# 注意：请根据你的实际路径调整 INPUT_FILE
 INPUT_FILE = 'extra_data/merged_data/Manhattan_Data_Current_2023_2025.csv'
-TRUCK_CAPACITY_PER_TRIP = 12.0  # 单次运力 (吨)
-TRIPS_PER_DAY = 2  # 每日趟数
-DAILY_CAPACITY = TRUCK_CAPACITY_PER_TRIP * TRIPS_PER_DAY  # 24吨
+WORK_DAYS_PER_MONTH = 30.0
+
+# 现实约束：考虑地理和运营损失 20%
+NOMINAL_CAPACITY = 24.0
+EFFICIENCY_LOSS_FACTOR = 0.20
+DAILY_CAPACITY = NOMINAL_CAPACITY * (1 - EFFICIENCY_LOSS_FACTOR)  # 19.2 吨/天/车
+
+# 拓扑分区定义 (用于 L5 模型，模拟相邻区共享)
+POOLS = {
+    'Lower': [101, 102, 103],
+    'Midtown': [104, 105, 106, 107],
+    'Uptown': [108, 109, 110, 111, 112]
+}
 
 
-# ================= 1. 数据加载与频率决策 =================
+# ================= 2. 核心函数 (已修改以适应 L5 约束) =================
+
 def load_and_prep_data(filepath):
     df = pd.read_csv(filepath)
+    df = df.dropna(subset=['Rat_Complaints', 'Monthly_Trash_Tons', 'CD_ID'])
 
-    # --- 策略：决定回收频率 ---
-    # 逻辑：鼠患投诉量高于中位数的，定为高频区 (3次/周)，否则为标准区 (2次/周)
+    # 频率决策 (策略核心)
     rat_threshold = df['Rat_Complaints'].median()
+    df['Freq'] = df['Rat_Complaints'].apply(lambda x: 3 if x > rat_threshold else 2)
 
-    def get_freq_and_label(row):
-        if row['Rat_Complaints'] > rat_threshold:
-            return 3, 'High(3x)'
-        else:
-            return 2, 'Std(2x)'
-
-    df[['Freq', 'Label']] = df.apply(lambda x: pd.Series(get_freq_and_label(x)), axis=1)
-
-    # 计算“单次回收日的垃圾量” (Tons per Pickup Day)
-    # 假设一个月 4.33 周
+    # Tons per Pickup Day
     df['Tons_Per_Pickup'] = df['Monthly_Trash_Tons'] / 4.33 / df['Freq']
 
+    # 添加区域划分 (L5 拓扑约束)
+    def get_pool(cd_id):
+        cd = int(cd_id)
+        for pool_name, districts in POOLS.items():
+            if cd in districts:
+                return pool_name
+        return 'Other'
+
+    df['Pool'] = df['CD_ID'].apply(get_pool)
     return df
 
 
-# ================= 2. 智能排班 (核心优化) =================
-def optimize_schedule(df):
+def optimize_schedule_sub(df_subset):
     """
-    将社区分配到具体的“工作日模式”，以平衡每天的垃圾总量。
-    模式池：
-    - Freq=3: [Mon, Wed, Fri] 或 [Tue, Thu, Sat]
-    - Freq=2: [Mon, Thu] 或 [Tue, Fri] 或 [Wed, Sat]
+    对一个数据子集 (可以是全局或局部池) 进行排班优化，找出最大负荷。
+    这个函数是从你的 optimize_schedule 修改而来，现在用于局部和全局计算。
     """
-    # 初始化一周6天的垃圾负荷 (周日休息)
-    # 0:Mon, 1:Tue, 2:Wed, 3:Thu, 4:Fri, 5:Sat
     daily_loads = np.zeros(6)
-
-    # 记录每个区的排班结果
-    schedule_map = {}  # CD_ID -> [Days]
-
-    # 贪心算法：优先安排垃圾量最大的区
-    sorted_districts = df.sort_values(by='Tons_Per_Pickup', ascending=False)
+    sorted_districts = df_subset.sort_values(by='Tons_Per_Pickup', ascending=False)
 
     for _, row in sorted_districts.iterrows():
         load = row['Tons_Per_Pickup']
         freq = row['Freq']
-        cd_id = row['CD_ID']
 
         best_pattern = None
         min_peak_load = float('inf')
 
-        # 定义可选的时间模式
         if freq == 3:
-            options = [[0, 2, 4], [1, 3, 5]]  # MWF vs TTS
+            options = [[0, 2, 4], [1, 3, 5]]
         else:
-            options = [[0, 3], [1, 4], [2, 5]]  # MTh vs TF vs WS
+            options = [[0, 3], [1, 4], [2, 5]]
 
-        # 尝试每一种模式，看谁能让“全周最大峰值”最小
         for pattern in options:
             current_peak = max(daily_loads[day] + load for day in pattern)
-            # 同时也考虑当天的总负荷，稍微倾向于填补空闲日
             if current_peak < min_peak_load:
                 min_peak_load = current_peak
                 best_pattern = pattern
 
-        # 执行分配
-        for day in best_pattern:
-            daily_loads[day] += load
-        schedule_map[cd_id] = best_pattern
+        if best_pattern is not None:
+            for day in best_pattern:
+                daily_loads[day] += load
 
-    print("\n--- 智能排班后的每日垃圾总量 (Tons) ---")
-    days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    for i, load in enumerate(daily_loads):
-        print(f"{days[i]}: {load:.1f} 吨")
-
-    max_daily_load = max(daily_loads)
-    print(f"\n全周最大单日负荷: {max_daily_load:.1f} 吨 (决定了车队规模)")
-
-    return max_daily_load, schedule_map
+    return max(daily_loads)
 
 
-# ================= 3. 计算车队 (Bin Packing) =================
-# 基于最大单日负荷计算
-def calculate_fleet_size(max_daily_load):
-    # 理论最小车数 (无视地理分割，理想拼单)
-    # 因为我们已经在 schedule 层面做了平衡，每天的总量是我们要处理的对象
-    # 这里应用 Bin Packing 思想：总垃圾 / 单车运力
-
-    # 考虑到实际可能有碎块，稍微加一点余量，或者模拟具体的一天
-    # 简单估算：直接除以运力，向上取整。因为跨区拼单允许我们把剩余的填满。
-    trucks_needed = np.ceil(max_daily_load / DAILY_CAPACITY)
-
-    return int(trucks_needed)
-
-
-# ================= 主程序 =================
+# ================= 3. 主程序运行与对比输出 =================
 if __name__ == "__main__":
-    # 1. 加载数据
+
     df = load_and_prep_data(INPUT_FILE)
-    print(f"数据加载完毕，共有 {len(df[df['Freq'] == 3])} 个高频区 (3x), {len(df[df['Freq'] == 2])} 个标准区 (2x)")
 
-    # 2. 之前的笨办法 (所有人在周一收)
-    worst_case_load = df['Tons_Per_Pickup'].sum()
-    worst_case_trucks = np.ceil(worst_case_load / DAILY_CAPACITY)
-    print(f"\n[Baseline] 同步回收 (所有区同一天): 需要 {int(worst_case_trucks)} 辆车")
+    # --- A. L4 模型：理想效率上限 (全局共享) ---
+    global_max_load = optimize_schedule_sub(df)
+    fleet_global_l4 = np.ceil(global_max_load / DAILY_CAPACITY)
 
-    # 3. 现在的聪明办法 (错峰排班)
-    max_load_balanced, schedules = optimize_schedule(df)
+    # --- B. L5 模型：现实拓扑约束下的解 ---
+    total_fleet_l5 = 0
+    pool_data = {}
 
-    # 4. 计算最终车队
-    optimized_trucks = calculate_fleet_size(max_load_balanced)
+    for pool_name, group in df.groupby('Pool'):
+        if pool_name == 'Other': continue
 
-    print(f"\n[Optimized] 错峰排班 + 跨区共享: 需要 {optimized_trucks} 辆车")
+        max_load_pool = optimize_schedule_sub(group)
+        fleet_needed = np.ceil(max_load_pool / DAILY_CAPACITY)
 
-    # 5. 结论
-    saved = worst_case_trucks - optimized_trucks
-    print(f"\nResult: 通过排班优化，节省了 {int(saved)} 辆车 ({saved / worst_case_trucks:.1%})")
+        total_fleet_l5 += fleet_needed
+        pool_data[pool_name] = {'Load': max_load_pool, 'Trucks': int(fleet_needed)}
 
-    # 导出排班表供论文使用
-    print("\n--- 排班表示例 ---")
-    days_lookup = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    for cd_id, pattern in list(schedules.items())[:5]:
-        d_str = ",".join([days_lookup[d] for d in pattern])
-        print(f"CD {int(cd_id)}: {d_str}")
+    # --- 最终输出结果 ---
+    print("\n=======================================================")
+    print("=== L4 vs L5: 最终车队规模对比 (C_eff = 19.2 吨/天) ===")
+    print("=======================================================")
+    print(f"**理想基准 (L4 全局共享)**: {int(fleet_global_l4)} 辆")
+    print(f"   (Max Load: {global_max_load:.1f} 吨)")
+
+    print("\n--- L5 现实推荐 (拓扑约束) ---")
+    for pool, data in pool_data.items():
+        print(f"  {pool} 池 (局部瓶颈): {data['Load']:.1f} 吨 -> 需要 {data['Trucks']} 辆")
+
+    print("-" * 45)
+    print(f"**现实推荐总数 (L5 拓扑解): {int(total_fleet_l5)} 辆**")
+
+    # 验证对比
+    cost_increase = total_fleet_l5 - fleet_global_l4
+    print(f"\n结论: 拓扑约束导致的增量成本: {int(cost_increase)} 辆车")
+    print("=======================================================")
+
+    # ================= 4. 导出 Q2 所需数据 =================
+    # 构建要传给 Q2 的数据表
+    output_df = df[
+        ['CD_ID', 'DISTRICT', 'Freq', 'Tons_Per_Pickup', 'Rat_Complaints', 'Median_Income', 'Population']].copy()
+    # 这里的 'Freq' 必须是你优化后的频率（高频区是3，低频区是2）
+    output_df.to_csv('try/data/problem1_final_solution.csv', index=False)
+    print("✅ 已导出 Q2 所需数据: problem1_final_solution.csv")
