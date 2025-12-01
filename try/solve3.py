@@ -98,7 +98,7 @@ def run_analysis(df):
     plt.ylabel('Waste Spike Rate')
     plt.title('Robustness Heatmap: Service Level under Stress')
     plt.tight_layout()
-    plt.savefig('Viz_Q3_Robustness_Heatmap.png', dpi=300)
+    plt.savefig('try/image/Viz_Q3_Robustness_Heatmap.png', dpi=300)
     print("📊 鲁棒性热力图已保存: Viz_Q3_Robustness_Heatmap.png")
 
     # --- 场景 B: 极端天气适应性 (加班策略) ---
@@ -134,7 +134,7 @@ def run_analysis(df):
     plt.title('Adaptation Strategy: Extending Limits with Overtime')
     plt.legend()
     plt.tight_layout()
-    plt.savefig('Viz_Q3_Adaptation.png', dpi=300)
+    plt.savefig('try/image/Viz_Q3_Adaptation.png', dpi=300)
     print("📊 适应性分析图已保存: Viz_Q3_Adaptation.png")
 
 

@@ -71,7 +71,7 @@ def analyze_correlation(df):
     plt.ylabel(f'Rat Complaints ({label})')
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig('Viz_Q4_Correlation.png', dpi=300)
+    plt.savefig('try/image/Viz_Q4_Correlation.png', dpi=300)
     print("📊 相关性图已保存: Viz_Q4_Correlation.png")
 
     return corr
@@ -151,7 +151,7 @@ def predict_rat_reduction(df):
     plt.legend()
     plt.grid(axis='y', linestyle='--', alpha=0.3)
     plt.tight_layout()
-    plt.savefig('Viz_Q4_Impact_Prediction.png', dpi=300)
+    plt.savefig('try/image/Viz_Q4_Impact_Prediction.png', dpi=300)
     print("📊 预测对比图已保存: Viz_Q4_Impact_Prediction.png")
 
     return df
@@ -168,7 +168,7 @@ if __name__ == "__main__":
         df = predict_rat_reduction(df)
 
         # 导出结果
-        df.to_csv('problem4_strategy_result.csv', index=False)
+        df.to_csv('try/data/problem4_strategy_result.csv', index=False)
         print("\n✅ Q4 分析完成，策略表已保存至 problem4_strategy_result.csv")
     else:
         print("❌ 数据加载失败，无法进行分析。")

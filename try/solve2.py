@@ -106,7 +106,7 @@ def plot_equity_scatter(df, corr_inc):
     plt.legend()
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig('Viz_Q2_Equity_Income.png', dpi=300)
+    plt.savefig('try/image/Viz_Q2_Equity_Income.png', dpi=300)
     print("📊 图表已保存: Viz_Q2_Equity_Income.png")
 
 
@@ -143,7 +143,7 @@ def plot_tradeoff_concept(corr_income):
     plt.legend(loc='lower right')
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig('Viz_Q2_Tradeoff.png', dpi=300)
+    plt.savefig('try/image/Viz_Q2_Tradeoff.png', dpi=300)
     print("📊 图表已保存: Viz_Q2_Tradeoff.png")
 
 

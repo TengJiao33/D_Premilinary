@@ -111,10 +111,10 @@ def run_analysis():
     plt.ylabel('Trucks Needed')
     plt.grid(axis='y', alpha=0.3)
 
-    plt.savefig('Viz_Q5_RealData_Impact.png', dpi=300)
+    plt.savefig('try/image/Viz_Q5_RealData_Impact.png', dpi=300)
     print("📊 结果图已保存: Viz_Q5_RealData_Impact.png")
 
-    df.to_csv('problem5_real_data_result.csv', index=False)
+    df.to_csv('try/data/problem5_real_data_result.csv', index=False)
 
 
 if __name__ == "__main__":
